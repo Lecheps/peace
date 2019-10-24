@@ -1,0 +1,54 @@
+{
+    "version": "2.0.0",
+    "windows": {
+      "options": {
+        "shell": {
+          "executable": "bash.exe",
+          "args": ["-c"]
+        }
+      }
+    },
+    "tasks": [
+      {
+        "label": "build peace",
+        "type": "shell",
+        "command": "g++",
+        "args": [
+          "-Ofast",
+          "-o",
+          "peace",
+          "peace.cpp",
+          "-lpthread"
+        ],
+        "group": {
+          "kind": "build",
+          "isDefault": false
+        },
+        "problemMatcher": [
+          "$gcc"
+        ]
+      },
+      {
+        "label": "build peace debug",
+        "type": "shell",
+        "command": "g++",
+        "args": [
+          "-ggdb3",
+          "-g3",
+          "-gdwarf",
+          "-o",
+          "peace_debug",
+          "peace.cpp",
+          "-lpthread",
+          "-DDEBUG_ENABLE"
+        ],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "problemMatcher": [
+          "$gcc"
+        ]
+      }
+    ]
+  }
