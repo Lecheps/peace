@@ -143,32 +143,28 @@ struct Population
     
     static const size_t potsize = 10000;
     
-    // std::array<double,potsize> c;
-    std::list<double> c;
+    std::array<double,potsize> c;
+    // std::list<double> c;
 
     randGenerator* genie;
     static size_t cnt;
 
 
-    void fillUntil(size_t pos, double& val)
+    void fillUntil(const size_t pos, const double& val)
     {
-        // c.clear();
-        // for (size_t i = 0; i < pos; ++i)
-        // {
-        //         // c[i] =val;
-        //         c.push_back(val);
-        // }
-        std::list<double> dummy(pos,val);
-        c = std::move(dummy);
+        // std::list<double> dummy(pos,val);
+        // c = std::move(dummy);
+        c.fill(0.);
+        for (auto i = 0; i < pos; ++i) c[i] = val;
     }
 
     void initRandPop()
     {
-        std::list<double> dummy(initPop,size);
-        for (auto& i :  dummy) i = i * 2. / 3. * genie->get_rand_uni() + i / 3.;
-        c = std::move(dummy);
-        // c.clear();
-        // for (auto i = 0; i < initPop; ++i) c.push_back(size * 2. / 3. * genie->get_uni() + size / 3.);
+        // std::list<double> dummy(initPop,size);
+        // for (auto& i :  dummy) i = i * 2. / 3. * genie->get_rand_uni() + i / 3.;
+        // c = std::move(dummy);
+        c.fill(0.);
+        for (auto i = 0; i < initPop; ++i) c[i] = size * 2. / 3. * genie->get_rand_uni() + size / 3.;        
     }
 
     double getMass()
@@ -180,28 +176,38 @@ struct Population
 
     size_t getNumAlive()
     {
-        // size_t result = 0;
-        // for (const auto& i : c) if (i != 0) result++;
-        // return result;
-        return c.size();
+        size_t result = 0;
+        for (const auto& i : c) if (i != 0) result++;
+        return result;
+        // return c.size();
     }
 
     void doTheEvolution()
-    {                
+    {            
+        std::vector<double> to_add;    
         for (auto it = c.begin(); it != c.end(); ++it)
         {
             *it += normParams->first / 2. * growth;
             if (*it > (normParams->second  * genie->get_rand_norm() + normParams->first))
             {
                 *it /= 2.;
-                if (c.size() < potsize) c.insert(it,*it);
+                // if (c.size() < potsize) c.insert(it,*it);
+                to_add.push_back(*it);
             }            
         }
-        
-        for (auto it = c.begin(); it != c.end();)
+        auto it = to_add.begin();
+        auto cit = std::find(c.begin(),c.end(),0.);
+        while (it != to_add.end() && cit != c.end())
         {
-            if (genie->get_rand_uni() < 0.05) it = c.erase(it);
-            else ++it;
+            *cit = *it;
+            ++it;
+            cit = std::find(cit,c.end(),0.);
+        }
+        
+        for (auto it = c.begin(); it != c.end();++it)
+        {
+            if (genie->get_rand_uni() < 0.05) *it = 0.;//it = c.erase(it);
+            // else ++it;
         }
     }
 };
