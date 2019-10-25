@@ -190,38 +190,25 @@ struct Population
     {                
         for (auto it = c.begin(); it != c.end(); ++it)
         {
-            double newSize = *it + normParams->first / 2. * growth;
-            if (newSize > (normParams->second  * genie->get_rand_norm() + normParams->first))
+            *it += normParams->first / 2. * growth;
+            if ( *it > (normParams->second  * genie->get_rand_norm() + normParams->first))
             {
-                if (genie -> get_rand_uni() < 0.05)
+                *it /= 2.;
+                if (c.size() < potsize && genie->get_rand_uni() >= 0.05)
                 {
-                    it = c.erase(it);
-                    it--;
-                }
-                else *it = newSize / 2.;
-                if (c.size() < potsize)
-                {
-                   it = c.insert(it,newSize / 2.);
-                   it++;
+                    c.insert(it,*it);
                 } 
             }     
-            else if (genie->get_rand_uni() < 0.05)
+            
+            if (genie -> get_rand_uni() < 0.05)
             {
                 it = c.erase(it);
                 it--;
             }
-            else *it = newSize;
-            
-                   
         }
-        
-        // for (auto it = c.begin(); it != c.end();)
-        // {
-        //     if (genie->get_rand_uni() < 0.05) it = c.erase(it);
-        //     else ++it;
-        // }
     }
-};
+  
+ 
 
 size_t Population::cnt = 0;
 
