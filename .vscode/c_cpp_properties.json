@@ -3,7 +3,7 @@
         {
             "name": "Linux",
             "includePath": [
-                "/home/jose-luis/Documents/boost_1_66_0"
+                "/home/jose-luis/Documents/boost_1_71_0"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/g++",

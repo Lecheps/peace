@@ -8,83 +8,22 @@
 #endif
 
 #include <iostream>
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/lagged_fibonacci.hpp>
-#include <boost/random/normal_distribution.hpp>
-#include <boost/random/uniform_real.hpp>
-#include <boost/random/variate_generator.hpp>
-#include <boost/generator_iterator.hpp>
+#include "RandGenerator.h"
+// #include <boost/generator_iterator.hpp>
 #include <boost/range/combine.hpp>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/key_extractors.hpp>
 #include <boost/multi_index/ordered_index.hpp>
 #include <boost/multi_index/composite_key.hpp>
-#include <boost/lockfree/spsc_queue.hpp>
-#include <boost/lockfree/queue.hpp>
 #include <math.h>
 #include <array>
 #include <chrono>
 #include <limits>
 #include <thread>
-#include <atomic>
 #include <vector>
 #include <list>
 #include <iomanip> 
-
-typedef boost::mt11213b base_generator_type;
-//typedef boost::mt19937 base_generator_type;
-
-typedef boost::normal_distribution<> norm_dist;
-typedef boost::uniform_real<> uni_dist;
-typedef boost::variate_generator<base_generator_type&, norm_dist> norm_gen;
-typedef boost::variate_generator<base_generator_type&, uni_dist> uni_gen;
-const size_t randBuffer = 10000000;
-
-struct randGenerator{
-
-	static base_generator_type gen_norm, gen_uni;
-	static norm_dist norm;
-	static uni_dist uni;
-	static norm_gen get_rand_norm;
-	static uni_gen get_rand_uni;
-	static std::thread thread_uni, thread_norm;
-    static std::atomic<bool> cancellation_token_uni, cancellation_token_norm;
-	 	
-	static boost::lockfree::spsc_queue<double, boost::lockfree::capacity<randBuffer>> queue_norm, queue_uni;
-
-	static void async_norm()
-	{
-            while (cancellation_token_norm) queue_norm.push(get_rand_norm());		
-	}
-
-	static void async_uni()
-	{
-            while (cancellation_token_uni) queue_uni.push(get_rand_uni());		
-	}
-        
-    static double get_uni(){
-        double uni;
-        while (!queue_uni.pop(uni)) {};
-        return uni;
-    }
-    
-    static double get_norm(){
-        double norm;
-        while (!queue_norm.pop(norm)) {};
-        return norm;
-    }
-};
-
-base_generator_type randGenerator::gen_norm(42), randGenerator::gen_uni(84);
-norm_dist randGenerator::norm(0.0, 1.0);
-uni_dist randGenerator::uni(0.0, 1.0);
-uni_gen randGenerator::get_rand_uni(gen_uni, uni);
-norm_gen  randGenerator::get_rand_norm(gen_norm, norm);// , randGenerator::get_rand_norm1(gen1, norm1);
-boost::lockfree::spsc_queue<double, boost::lockfree::capacity<randBuffer>> randGenerator::queue_norm;
-boost::lockfree::spsc_queue<double, boost::lockfree::capacity<randBuffer>> randGenerator::queue_uni;
-std::thread randGenerator::thread_norm, randGenerator::thread_uni;
-std::atomic<bool> randGenerator::cancellation_token_uni, randGenerator::cancellation_token_norm;
 
 struct Parameters {
     static const size_t FGnum = 6;
@@ -125,7 +64,10 @@ struct Parameters {
 struct Population
 {
 
-    Population() { 
+    Population() :
+    normal(RandGenerator::make_generator(DISTRIBUTION::NORMAL)),
+    uniform(RandGenerator::make_generator(DISTRIBUTION::UNIFORM))
+    { 
             normParams = nullptr; 
     };
     unsigned short int s;
@@ -140,13 +82,15 @@ struct Population
     size_t ts_length;
     double epsilon;
     double growth;
+    RandGenerator* normal;
+    RandGenerator* uniform;
     
     static const size_t potsize = 10000;
     
     // std::array<double,potsize> c;
     std::list<double> c;
 
-    randGenerator* genie;
+    // randGenerator* genie;
     static size_t cnt;
 
 
@@ -165,7 +109,7 @@ struct Population
     void initRandPop()
     {
         std::list<double> dummy(initPop,size);
-        for (auto& i :  dummy) i = i * 2. / 3. * genie->get_rand_uni() + i / 3.;
+        for (auto& i :  dummy) i = i * 2. / 3. * uniform->get() + i / 3.;
         c = std::move(dummy);
         // c.clear();
         // for (auto i = 0; i < initPop; ++i) c.push_back(size * 2. / 3. * genie->get_uni() + size / 3.);
@@ -191,16 +135,16 @@ struct Population
         for (auto it = c.begin(); it != c.end(); ++it)
         {
             *it += normParams->first / 2. * growth;
-            if ( *it > (normParams->second  * genie->get_rand_norm() + normParams->first))
+            if ( *it > (normParams->second  * normal->get() + normParams->first))
             {
                 *it /= 2.;
-                if (c.size() < potsize && genie->get_rand_uni() >= 0.05)
+                if (c.size() < potsize && uniform->get() >= 0.05)
                 {
                     c.insert(it,*it);
                 } 
             }     
             
-            if (genie -> get_rand_uni() < 0.05)
+            if (uniform->get() < 0.05)
             {
                 it = c.erase(it);
                 it--;
@@ -208,7 +152,31 @@ struct Population
         }
     }
   
- 
+    // void doTheEvolution_o()
+    // {                
+    //     for (auto it = c.begin(); it != c.end(); ++it)
+    //     {
+    //         *it += normParams->first / 2. * growth;
+    //         if (*it > (normParams->second  * genie->get_rand_norm() + normParams->first))
+    //         {
+    //             *it /= 2.;
+    //             if (c.size() < potsize)
+    //             {
+    //                 c.insert(it,*it);
+    //             } 
+    //         }            
+    //     }
+        
+    //     for (auto it = c.begin(); it != c.end();)
+    //     {
+    //         if (genie->get_rand_uni() < 0.05)
+    //         {
+    //             it = c.erase(it);
+    //         } 
+    //         else ++it;
+    //     }
+    // }
+};
 
 size_t Population::cnt = 0;
 
@@ -287,33 +255,10 @@ using parBContainer = boost::multi_index_container
 int main()
 {
     
-    
     //----------------------------------------------------------------------------------------
 	//Starting timer
     auto start = std::chrono::high_resolution_clock::now();
-    // for (auto i = 0; i < 100000000; ++i) double dummy = randGenerator::get_rand_norm();
-    //----------------------------------------------------------------------------------------
-    /*
-    The performance bottleneck in this code is the random number generation. 
-    /We attempt to mitigate that by generating them (uniform and normal distribution)
-    in separate threads
-    */
-    D(std::cout << "Gonna start" << std::endl;)
-    randGenerator::cancellation_token_norm = true;
-    randGenerator::cancellation_token_uni = true;
-    
-    D(std::cout << "Starting threads..." << std::endl;)
-    // randGenerator::thread_norm = std::thread(&randGenerator::async_norm);
-    // randGenerator::thread_uni = std::thread(&randGenerator::async_uni);
-    D(std::cout << "Threads away!" << std::endl;) 
-    /*
-    Note to self: when the threads are detached instead, the system takes a long
-    time to liberate the resources. So long that if several instances of the program
-    are launched after each other it bogs down the system. Why?
-    */
-    // randGenerator::thread_norm.detach();  
-    // randGenerator::thread_uni.detach();
-
+   
     //----------------------------------------------------------------------------------------
     /*
     Initial calculations
@@ -471,18 +416,38 @@ int main()
             // std::cout << i << " ";
             double L = i < par.t_stressor/par.step ? L1 : L1 + log10(pow(10,par.L2) * exp((-log(2) / par.tao ) * (i - par.t_stressor/par.step)));
             
-            for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
-            {
-                (**it).epsilon = (**it).Growth_adj_tolerance *
-                        (1. - (1. / (1. + (pow(10, (**it).EC50s) / pow(pow(10, L), par.nlogit)))));
+            // for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
+            // {
+            //     (**it).epsilon = (**it).Growth_adj_tolerance *
+            //             (1. - (1. / (1. + (pow(10, (**it).EC50s) / pow(pow(10, L), par.nlogit)))));
 
-                (**it).growth = ((Unbiased_GR[(**it).s] -
-                        (B[i - 1] * par.BM_inhibit)) * par.step) * (**it).epsilon;
+            //     (**it).growth = ((Unbiased_GR[(**it).s] -
+            //             (B[i - 1] * par.BM_inhibit)) * par.step) * (**it).epsilon;
 
-                if ((**it).growth < 0.) (**it).growth = 0.;
+            //     if ((**it).growth < 0.) (**it).growth = 0.;
+
+            //     std::cout << (*it)->fg  << " " << (*it)->s << std::endl;
                 
-                (**it).doTheEvolution();
+            //     (**it).doTheEvolution();
+            // }
+            // #pragma omp parallel for
+            for (int i = 0; i < 36 ; ++i)
+            {
+                c_array[i].epsilon = c_array[i].Growth_adj_tolerance *
+                        (1. - (1. / (1. + (pow(10,c_array[i].EC50s) / pow(pow(10, L), par.nlogit)))));
+
+                c_array[i].growth = ((Unbiased_GR[c_array[i].s] -
+                        (B[i - 1] * par.BM_inhibit)) * par.step) * c_array[i].epsilon;
+
+                if (c_array[i].growth < 0.) c_array[i].growth = 0.;
+
+                std::cout << c_array[i].fg  << " " << c_array[i].s << std::endl;
+                
+                c_array[i].doTheEvolution();
             }
+
+
+
 
             for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it, ++parB_cnt)
             {
@@ -557,13 +522,6 @@ int main()
 	for (auto i = 0; i < par.reiterations; ++i) delete[] totD[i];
 	delete [] totD;
 
-    D(std::cout << "Joining random number generation threads..." << std::endl;)
-    randGenerator::cancellation_token_norm = false;
-    randGenerator::cancellation_token_uni = false;
-    // randGenerator::thread_norm.join();
-    // randGenerator::thread_uni.join();
-    D(std::cout << "Done!" << std::endl;)
-        
 	std::cout << "Time taken by peace4U: " << duration.count() << " milliseconds " << Population::cnt << std::endl;
 	return 0;
 }
