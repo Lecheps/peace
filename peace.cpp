@@ -24,6 +24,7 @@
 #include <vector>
 #include <list>
 #include <iomanip> 
+#include <omp.h>
 
 struct Parameters {
     static const size_t FGnum = 6;
@@ -32,7 +33,7 @@ struct Parameters {
 
     double Pd = 0.05;
     double g = -0.0035;
-    double b = - 4.5195;
+    double b = -4.5195;
     double Fi_1, Fi_1_Pd;
     double b_Pd = -4.0;
     double g_Pd = -0.00215;
@@ -69,19 +70,51 @@ struct Population
     uniform(RandGenerator::make_generator(DISTRIBUTION::UNIFORM))
     { 
             normParams = nullptr; 
-    };
-    unsigned short int s;
-    unsigned short int fg;
-    size_t idx;
+            // normal->start_async_gen();
+            // uniform->start_async_gen();
+    }
 
-    double EC50s;
-    double Growth_adj_tolerance;
+    // Population(bool dummy) : normal(nullptr),uniform(nullptr)
+    // { 
+    //         normParams = nullptr; 
+    //         // normal->start_async_gen();
+    //         // uniform->start_async_gen();
+    // }
+
+    ~Population()
+    {
+        // normal->stop_async_gen();
+        // uniform->stop_async_gen();
+    }
+
+    Population(const Population &p) : 
+    normal(RandGenerator::make_generator(DISTRIBUTION::NORMAL)),
+    uniform(RandGenerator::make_generator(DISTRIBUTION::UNIFORM))
+    {
+        s = p.s;
+        fg = p.fg;
+        idx = p.idx;
+        EC50s = p.EC50s;
+        normParams = p.normParams;
+        size = p.size;
+        initPop = p.initPop;
+        ts_length = p.ts_length;
+        epsilon = p.epsilon;
+        growth = p.growth;
+    }
+
+    unsigned short int s = std::numeric_limits<unsigned short int>::max();
+    unsigned short int fg = std::numeric_limits<unsigned short int>::max();
+    size_t idx = std::numeric_limits<size_t>::max();
+
+    double EC50s = 0.;
+    double Growth_adj_tolerance = 0.;
     std::pair<double, double>* normParams;
-    double size;
-    size_t initPop;
-    size_t ts_length;
-    double epsilon;
-    double growth;
+    double size = 0.;
+    size_t initPop = 0;
+    size_t ts_length = 0;
+    double epsilon = 0.;
+    double growth = 0.;
     RandGenerator* normal;
     RandGenerator* uniform;
     
@@ -89,10 +122,6 @@ struct Population
     
     // std::array<double,potsize> c;
     std::list<double> c;
-
-    // randGenerator* genie;
-    static size_t cnt;
-
 
     void fillUntil(size_t pos, double& val)
     {
@@ -178,33 +207,51 @@ struct Population
     // }
 };
 
-size_t Population::cnt = 0;
-
 using Container = boost::multi_index_container<
     Population*, // the data type stored
-    boost::multi_index::indexed_by<
-    boost::multi_index::hashed_non_unique<  
+    boost::multi_index::indexed_by
+    <
+        boost::multi_index::hashed_non_unique
+        <  
             boost::multi_index::tag<struct s>, 
             boost::multi_index::member<Population, unsigned short int, & Population::s> 
-    >,
-    boost::multi_index::hashed_non_unique<  
+        >,
+        boost::multi_index::hashed_non_unique
+        <  
             boost::multi_index::tag<struct fg>, 
             boost::multi_index::member<Population, unsigned short int, & Population::fg >
-    >,
-    boost::multi_index::hashed_unique<
-    boost::multi_index::tag<struct idx>,
-    boost::multi_index::member<Population, size_t, & Population::idx >
-    >
+        >,
+        boost::multi_index::hashed_unique
+        <
+            boost::multi_index::tag<struct idx>,
+            boost::multi_index::member<Population, size_t, & Population::idx >
+        >,
+        boost::multi_index::ordered_unique
+        <
+            boost::multi_index::tag<struct s_and_fg>,
+            boost::multi_index::composite_key
+            <
+                Population*,
+                boost::multi_index::member<Population,unsigned short int,&Population::s>,
+                boost::multi_index::member<Population,unsigned short int,&Population::fg>
+            >,
+            boost::multi_index::composite_key_compare
+            <
+                std::less<unsigned short int>,     
+                std::less<unsigned short int> 
+            >
+        >
     >
 >;
 
 struct parB
 {
-    unsigned short int s;
-    unsigned short int fg;
-    size_t idx;
-    size_t t;
-    double mass;
+    unsigned short int s = std::numeric_limits<unsigned short int>::max();
+    unsigned short int fg = std::numeric_limits<unsigned short int>::max();
+    size_t idx = std::numeric_limits<size_t>::max();
+    size_t t = std::numeric_limits<size_t>::max();
+    double mass = 0.;
+    // size_t num_alive = 0;
     std::vector<size_t>parD;
 };
 
@@ -280,25 +327,24 @@ int main()
             distParams.begin(),
             distParams.begin(),
             [](double& v, std::pair<double, double>& p) {
-                    return std::make_pair(v * 0.92, v * 0.92 * 0.08);
+                    return std::make_pair(v * 0.92, v * 0.3 * 0.92);
             });
 
 	D(for (auto& i : distParams) std::cout << i.first << " " << i.second << " / " ;)
 	
     Container C;
     Population* c_array = new Population[par.sc * par.FGnum];
-    auto& idxByS = C.get<s>();
+    
+    
     double kEC50 = 1. / (par.FG_EC50Orders + 1.);
-
     size_t cnt = 0;
-    Population* head = c_array;
     for (auto sc = 0; sc < par.sc; ++sc)
     {		
         for (auto fg = 0; fg < par.FGnum; ++fg,++cnt)
         {			
             c_array[cnt].s = sc;
             c_array[cnt].fg = fg;
-            c_array[cnt].idx = sc << 16 | fg;
+            c_array[cnt].idx = cnt; //sc << 16 | fg;
             c_array[cnt].normParams = &distParams[sc];
             c_array[cnt].size = par.sizeClasses[sc];
             c_array[cnt].initPop = par.InitN[sc];
@@ -314,22 +360,14 @@ int main()
             D(std::cout << std::endl;)
     }
 
+    
+
+
+    double val = (**(C.get<s_and_fg>().find(std::make_tuple(0,0)))).EC50s;
     for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
     {
-            head = *it;
-            size_t idx = head->s << 16 | 0;
-            auto it_first = C.get<2>().find(idx);
-            double val = (*it_first)->EC50s;
-            head->Growth_adj_tolerance = 1. -
-                    pow(kEC50 * (val - c_array->EC50s), par.q);
-    	D(std::cout << 
-                    head->Growth_adj_tolerance << " " <<
-                    c_array->EC50s << " " <<
-                    val << " " <<
-                    std::endl;)
+        (**it).Growth_adj_tolerance = 1. - pow(kEC50 * ( (**it).EC50s - val ) , par.q); 
     }
-
-   
 
     //----------------------------------------------------------------------------------------
     //Allocating space for temporary variables and results
@@ -339,8 +377,16 @@ int main()
     parB* parB_array = new parB[array_size];
     for (auto i = 0; i < array_size; ++i) parB_array[i].parD.resize(par.reiterations);
     parBContainer parB_container;
-    auto& idxByS_parB = parB_container.get<s_par>();
     
+    // parB*** parB_array = new parB**[par.reiterations];
+    // for (auto i = 0; i < par.reiterations; ++i)
+    // {
+    //     parB_array[i] = new parB*[ts];
+    //     for (auto j =  0; j < ts; ++j) parB_array[i][j]=new parB[par.sc];
+    // }
+    // parBContainer parB_container;
+
+      
 
     double*** FQ_sc = new double**[par.reiterations];
     for (auto i = 0; i < par.reiterations; ++i)
@@ -350,37 +396,70 @@ int main()
     }
 
     // for (auto i = 0; i < par.sc; ++i) FQ_sc[i] = new double[ts];
-    double* B = new double[ts];
+    double* B_fin = new double[ts];
     double** totD = new double* [par.reiterations];
     for (auto i = 0; i < par.reiterations; ++i) totD[i] = new double[ts];
 
-    //----------------------------------------------------------------------------------------
+    // //----------------------------------------------------------------------------------------
     //Work work work work work!
-
-    for (auto reit = 0; reit != par.reiterations; ++reit)
+    #pragma omp parallel for
+    for (int reit = 0; reit < par.reiterations; ++reit)
     {
-        // parB_container.clear();
+        double* B = new double[ts];
+        parB* parB_array = new parB[array_size];
+        for (auto i = 0; i < array_size; ++i) parB_array[i].parD.resize(par.reiterations);
+        parBContainer parB_container;
+
+        Container C;
+        Population* c_array = new Population[par.sc * par.FGnum];
+        size_t cnt = 0;
+        for (auto sc = 0; sc < par.sc; ++sc)
+        {		
+            for (auto fg = 0; fg < par.FGnum; ++fg,++cnt)
+            {			
+                c_array[cnt].s = sc;
+                c_array[cnt].fg = fg;
+                c_array[cnt].idx = cnt; //sc << 16 | fg;
+                c_array[cnt].normParams = &distParams[sc];
+                c_array[cnt].size = par.sizeClasses[sc];
+                c_array[cnt].initPop = par.InitN[sc];
+
+                c_array[cnt].fillUntil(par.InitN[sc], par.sizeClasses[sc]);
+                c_array[cnt].EC50s = fg == 0 ? 4. + par.size_EC50Orders /
+                        (double(par.sizeClasses.size()) - 1.) * double(sc) :
+                        c_array[cnt-1].EC50s + (par.FG_EC50Orders / (par.FGnum - 1.));
+
+                D(std::cout << c_array[cnt].EC50s << " ";)
+                C.insert(&c_array[cnt]);
+            }
+                D(std::cout << std::endl;)
+        }
+        double val = (**(C.get<s_and_fg>().find(std::make_tuple(0,0)))).EC50s;
+        for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
+        {
+            (**it).Growth_adj_tolerance = 1. - pow(kEC50 * ( (**it).EC50s - val ) , par.q); 
+        }
+
+       
         for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
         {
             (**it).initRandPop();
         }
-        
+                
         size_t parB_cnt = 0;
         for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it, ++parB_cnt)
         {
             parB_array[parB_cnt].mass = (**it).getMass();
             parB_array[parB_cnt].parD[reit] = (**it).getNumAlive();
             parB_array[parB_cnt].t = 0;
-            if (reit == 0)
-            {
+            // if (reit == 100)
+            // {
                 parB_array[parB_cnt].s = (unsigned short int) (**it).s; 
                 parB_array[parB_cnt].fg = (unsigned short int) (**it).fg;
                 parB_array[parB_cnt].idx = (**it).idx;
                 parB_container.insert(&(parB_array[parB_cnt]));
-            } 
+            // } 
         }
-
-        // for (auto& i parB_container.get<IndexBys_parB()>().begin();
 
         // Getting total number of organisms that are alive
         size_t tot_alive = 0;
@@ -421,29 +500,29 @@ int main()
             //     (**it).epsilon = (**it).Growth_adj_tolerance *
             //             (1. - (1. / (1. + (pow(10, (**it).EC50s) / pow(pow(10, L), par.nlogit)))));
 
-            //     (**it).growth = ((Unbiased_GR[(**it).s] -
+            //     (**it).growth = ((Unbiased_GR[(**   it).s] -
             //             (B[i - 1] * par.BM_inhibit)) * par.step) * (**it).epsilon;
 
             //     if ((**it).growth < 0.) (**it).growth = 0.;
 
-            //     std::cout << (*it)->fg  << " " << (*it)->s << std::endl;
-                
+            //     // std::cout << (**it).s << " " << (**it).fg << std::endl;
+
             //     (**it).doTheEvolution();
             // }
+
             // #pragma omp parallel for
-            for (int i = 0; i < 36 ; ++i)
+            for (int k = 0; k< 36 ; ++k)
             {
-                c_array[i].epsilon = c_array[i].Growth_adj_tolerance *
-                        (1. - (1. / (1. + (pow(10,c_array[i].EC50s) / pow(pow(10, L), par.nlogit)))));
+                c_array[k].epsilon = c_array[k].Growth_adj_tolerance *
+                        (1. - (1. / (1. + (pow(10,c_array[k].EC50s) / pow(pow(10, L), par.nlogit)))));
 
-                c_array[i].growth = ((Unbiased_GR[c_array[i].s] -
-                        (B[i - 1] * par.BM_inhibit)) * par.step) * c_array[i].epsilon;
+                c_array[k].growth = ((Unbiased_GR[c_array[k].s] -
+                        (B[i - 1] * par.BM_inhibit)) * par.step) * c_array[k].epsilon;
 
-                if (c_array[i].growth < 0.) c_array[i].growth = 0.;
+                if (c_array[k].growth < 0.) c_array[k].growth = 0.;
 
-                std::cout << c_array[i].fg  << " " << c_array[i].s << std::endl;
-                
-                c_array[i].doTheEvolution();
+                // std::cout << c_array[k].s << " " << c_array[k].fg << std::endl;
+                c_array[k].doTheEvolution();
             }
 
 
@@ -455,13 +534,13 @@ int main()
                 parB_array[parB_cnt].mass = (**it).getMass();
                 parB_array[parB_cnt].parD[reit] = (**it).getNumAlive();
                 parB_array[parB_cnt].t = i;
-                if(reit == 0)
-                {
+                // if(reit == 100)
+                // {
                     parB_array[parB_cnt].s = (unsigned short int) (**it).s; 
                     parB_array[parB_cnt].fg = (unsigned short int) (**it).fg;
                     parB_array[parB_cnt].idx = (**it).idx;
                     parB_container.insert(&(parB_array[parB_cnt]));
-                } 
+                // } 
             }
 
             size_t tot_alive = 0;
@@ -486,7 +565,7 @@ int main()
                     B[i] += it->mass;
                     totD[reit][i] += it->parD[reit];
             }
-            std::cout << std::fixed << std::setprecision(2) << B[i] << " " << totD[reit][i] << "\t";
+            // std::cout << std::fixed << std::setprecision(2) << B[i] << " " << totD[reit][i] << "\t";
 
 
 
@@ -495,22 +574,27 @@ int main()
 
 
         }
-        std::cout << std::endl << std::endl << std::endl;
+        // std::cout << std::endl << std::endl << std::endl;
+        
+        delete [] parB_array;
+        delete [] c_array;
+        for(auto i = 0; i<ts;++i) B_fin[i] = B[i];
+        delete [] B;
 
 	}
 	
-
+    for(auto i = 0; i<ts;++i) std::cout << B_fin[i] << " ";
+    std::cout << std::endl;
 
 	auto stop = std::chrono::high_resolution_clock().now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds > (stop - start);
 
 	
-	
-    //Freeing memory
-	delete [] parB_array;
-	delete [] c_array;
-	
-	for (auto i = 0; i < par.reiterations; ++i)
+	//Freeing memory
+    delete [] parB_array;
+    delete [] c_array;
+    
+    for (auto i = 0; i < par.reiterations; ++i)
     {
         for (auto j = 0; j < ts; ++j) delete[] FQ_sc[i][j];
         delete[] FQ_sc[i];
@@ -518,11 +602,12 @@ int main()
     delete FQ_sc;
 
 
-	delete [] B;	
-	for (auto i = 0; i < par.reiterations; ++i) delete[] totD[i];
-	delete [] totD;
+    delete [] B_fin;	
+    for (auto i = 0; i < par.reiterations; ++i) delete[] totD[i];
+    delete [] totD;
 
-	std::cout << "Time taken by peace4U: " << duration.count() << " milliseconds " << Population::cnt << std::endl;
+
+	std::cout << "Time taken by peace4U: " << duration.count() << " milliseconds " << std::endl;
 	return 0;
 }
 

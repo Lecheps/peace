@@ -19,7 +19,8 @@
           "peace",
           "peace.cpp",
           "RandGenerator.cpp",
-          "-lpthread"
+          "-lpthread",
+          "-fopenmp"
         ],
         "group": {
           "kind": "build",

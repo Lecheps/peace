@@ -1,10 +1,10 @@
 #include "RandGenerator.h"
 
-std::atomic<uint32_t> RandGenerator::seed{41};
+std::atomic<uint32_t> RandGenerator::seed{42};
 
 RandGenerator::RandGenerator()
 {
-    base_generator.seed(seed++);
+    base_generator.seed(++seed);
 }
 
 
@@ -26,7 +26,7 @@ RandGenerator* RandGenerator::make_generator(DISTRIBUTION select_distribution)
 }
 
 
-template<typename T> //Need to specialize the class if the distribution constructor takes a different number of arguments
+template<typename T> //Need to specialize the class if the distribution constructor takes a different number of arguments than two
 Distribution<T>::Distribution() : distribution(0.0,1.0), gen(base_generator,distribution)
 {
     // for (auto i = 0; i < 10; ++i) std::cout <<gen() << " ";
