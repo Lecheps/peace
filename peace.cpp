@@ -265,13 +265,12 @@ struct ParB
         num_alive = p.num_alive;
     }
 
-    ParB()
+    ParB(unsigned short int s_init,
+         unsigned short int fg_init,
+         size_t t_init,
+         size_t reit_init) :
+         s(s_init), fg(fg_init), t(t_init), reit(reit_init)  
     {
-        s = std::numeric_limits<unsigned short int>::max();
-        fg = std::numeric_limits<unsigned short int>::max();
-        idx = std::numeric_limits<size_t>::max();
-        t = std::numeric_limits<size_t>::max();
-        reit = std::numeric_limits<size_t>::max();
         mass = 0.;
         num_alive = 0.;
     }
@@ -380,26 +379,32 @@ int main()
     const size_t ts = par.length / par.step;
     const size_t array_size = par.FGnum * par.sc * ts;
 
-    ParB* parB_array = new ParB[array_size * par.reiterations];
-    ParBContainer parB_container;
-    size_t ii = 0;
-    for (unsigned short int i = 0; i < par.sc; ++i) 
-    for(unsigned short int j = 0; j < par.FGnum; ++j) 
-    for(size_t k= 0; k <ts; ++k)
-    for(size_t l = 0; l < par.reiterations; ++l, ++ii)
-    {
-        parB_array[ii].s = i;
-        parB_array[ii].fg = j;
-        parB_array[ii].t = k;
-        parB_array[ii].reit = l;
-        parB_container.insert(&(parB_array[ii]));
-    }
+    std::vector<ParB> parB_array;
+    parB_array.reserve(array_size *  par.reiterations);
+    
+    // ParB* parB_array = new ParB[array_size * par.reiterations];
+    // ParBContainer parB_container;
+    // size_t ii = 0;
+    // for (unsigned short int i = 0; i < par.sc; ++i) 
+    // for(unsigned short int j = 0; j < par.FGnum; ++j) 
+    // for(size_t k= 0; k <ts; ++k)
+    // for(size_t l = 0; l < par.reiterations; ++l, ++ii)
+    // {
+    //     parB_array[ii].s = i;
+    //     parB_array[ii].fg = j;
+    //     parB_array[ii].t = k;
+    //     parB_array[ii].reit = l;
+    //     parB_container.insert(&(parB_array[ii]));
+    // }
     
     //----------------------------------------------------------------------------------------
     //Work work work work work!
     #pragma omp parallel for
     for (int reit = 0; reit < par.reiterations; ++reit)
     {
+
+    //----------------------------------------------------------------------------------------
+    // Initializing population    
         Container C;
         Population* c_array = new Population[par.sc * par.FGnum];
         size_t cnt = 0;
@@ -435,81 +440,79 @@ int main()
         {
             (**it).initRandPop();
         }
+
+    //----------------------------------------------------------------------------------------
+    // Computing initial biomass and storing result
                 
-        double biomass = 0.;
+        double old_biomass = 0.;
         for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
         {
-            auto currentPar = parB_container.get<all>().find(std::make_tuple((**it).s,
-                                                                       (**it).fg,
-                                                                        0,
-                                                                        reit
-                                                                        ));
-
-
-            (**currentPar).mass = (**it).getMass();
-            (**currentPar).num_alive = (**it).getNumAlive();
-            biomass += (**currentPar).mass;
+            ParB result((**it).s,
+                        (**it).fg,
+                        0,
+                        reit
+                        );      
+            result.mass = (**it).getMass();
+            result.num_alive = (**it).getNumAlive();
+            old_biomass += result.mass;
+            #pragma omp critical
+            {
+                parB_array.push_back(result);
+            }            
+            
+            
         }
 
-        //Do the evolution baby!
-
+    //----------------------------------------------------------------------------------------
+    // Do the evolution        
         for (auto i = 1; i < ts; ++i)
         {
             double L = i < par.t_stressor/par.step ? L1 : L1 + log10(pow(10,par.L2) * exp((-log(2) / par.tao ) * (i - par.t_stressor/par.step)));
-            
-            // for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
-            // {
-            //     (**it).epsilon = (**it).Growth_adj_tolerance *
-            //             (1. - (1. / (1. + (pow(10, (**it).EC50s) / pow(pow(10, L), par.nlogit)))));
-
-            //     (**it).growth = ((Unbiased_GR[(**   it).s] -
-            //             (B[i - 1] * par.BM_inhibit)) * par.step) * (**it).epsilon;
-
-            //     if ((**it).growth < 0.) (**it).growth = 0.;
-
-            //     // std::cout << (**it).s << " " << (**it).fg << std::endl;
-
-            //     (**it).doTheEvolution();
-            // }
-
-            // #pragma omp parallel for
-            for (int k = 0; k< 36 ; ++k)
-            {
-                c_array[k].epsilon = c_array[k].Growth_adj_tolerance *
-                        (1. - (1. / (1. + (pow(10,c_array[k].EC50s) / pow(pow(10, L), par.nlogit)))));
-
-                c_array[k].growth = ((Unbiased_GR[c_array[k].s] -
-                        (biomass * par.BM_inhibit)) * par.step) * c_array[k].epsilon;
-
-                if (c_array[k].growth < 0.) c_array[k].growth = 0.;
-
-                // std::cout << c_array[k].s << " " << c_array[k].fg << std::endl;
-                c_array[k].doTheEvolution();
-            }
-
-
-
-            biomass = 0.;
+            double new_biomass = 0.;
             for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
             {
-                auto currentPar = parB_container.get<all>().find(std::make_tuple((**it).s,
-                                                                       (**it).fg,
-                                                                        i,
-                                                                        reit
-                                                                        ));
-                (**currentPar).mass = (**it).getMass();
-                (**currentPar).num_alive = (**it).getNumAlive();
-            
-                biomass += (**currentPar).mass;
-            }
+                (**it).epsilon = (**it).Growth_adj_tolerance *
+                        (1. - (1. / (1. + (pow(10, (**it).EC50s) / pow(pow(10, L), par.nlogit)))));
 
+                (**it).growth = ((Unbiased_GR[(**   it).s] -
+                        (old_biomass * par.BM_inhibit)) * par.step) * (**it).epsilon;
+
+                if ((**it).growth < 0.) (**it).growth = 0.;
+
+                (**it).doTheEvolution();
+
+                //Storing results
+                ParB result((**it).s,
+                        (**it).fg,
+                        i,
+                        reit
+                        );          
+                result.mass = (**it).getMass();
+                result.num_alive = (**it).getNumAlive();
+                new_biomass += result.mass;
+                #pragma omp critical
+                {
+                    parB_array.push_back(result);
+                }
+                
+                
+            }    
+            old_biomass = new_biomass;
         }
+       
+
+
+    //----------------------------------------------------------------------------------------
+    // Cleaning up
         delete [] c_array;
         // std::cout << std::endl << std::endl;
         
     }
 	
-
+    //----------------------------------------------------------------------------------------
+    // Showing results
+    ParBContainer parB_container;
+    for (auto &i : parB_array) parB_container.insert(&i);
 
     for (auto i = 0; i < par.reiterations; ++i)
     {
@@ -532,7 +535,7 @@ int main()
 
 	
 	//Freeing memory
-    delete [] parB_array;
+    // delete [] parB_array;
     // delete [] c_array;
     
     
