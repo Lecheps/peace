@@ -244,56 +244,97 @@ using Container = boost::multi_index_container<
     >
 >;
 
-struct parB
+struct ParB
 {
-    unsigned short int s = std::numeric_limits<unsigned short int>::max();
-    unsigned short int fg = std::numeric_limits<unsigned short int>::max();
-    size_t idx = std::numeric_limits<size_t>::max();
-    size_t t = std::numeric_limits<size_t>::max();
-    double mass = 0.;
-    // size_t num_alive = 0;
-    std::vector<size_t>parD;
+    unsigned short int s;
+    unsigned short int fg;
+    size_t idx;
+    size_t t;
+    size_t reit;
+    double mass;
+    size_t num_alive;
+
+    ParB(const ParB& p)
+    {
+        s = p.s;
+        fg = p.fg;
+        idx = p.idx;
+        t = p.t;
+        reit = p.reit;
+        mass = p.mass;
+        num_alive = p.num_alive;
+    }
+
+    ParB()
+    {
+        s = std::numeric_limits<unsigned short int>::max();
+        fg = std::numeric_limits<unsigned short int>::max();
+        idx = std::numeric_limits<size_t>::max();
+        t = std::numeric_limits<size_t>::max();
+        reit = std::numeric_limits<size_t>::max();
+        mass = 0.;
+        num_alive = 0.;
+    }
 };
 
-using parBContainer = boost::multi_index_container
+using ParBContainer = boost::multi_index_container
 <
-    parB*, // the data type stored
+    ParB*, // the data type stored
     boost::multi_index::indexed_by
         <
             boost::multi_index::hashed_non_unique
             <
                 boost::multi_index::tag<struct s_par>,
-                boost::multi_index::member<parB, unsigned short int, &parB::s>
+                boost::multi_index::member<ParB, unsigned short int, &ParB::s>
             >,
             boost::multi_index::hashed_non_unique
             <
                 boost::multi_index::tag<struct fg_par>,
-                boost::multi_index::member<parB, unsigned short int, &parB::fg >
+                boost::multi_index::member<ParB, unsigned short int, &ParB::fg >
             >,
             boost::multi_index::hashed_non_unique
             <
                 boost::multi_index::tag<struct idx_par>,
-                boost::multi_index::member<parB, size_t, &parB::idx >
+                boost::multi_index::member<ParB, size_t, &ParB::idx >
             >,
             boost::multi_index::hashed_non_unique
             <
                 boost::multi_index::tag<struct t_par>,
-                boost::multi_index::member<parB, size_t, &parB::t >
+                boost::multi_index::member<ParB, size_t, &ParB::t >
             >,
-            boost::multi_index::ordered_non_unique
+            boost::multi_index::hashed_non_unique
             <
-                boost::multi_index::tag<struct s_and_t>,
+                boost::multi_index::tag<struct t_and_reit>,
                 boost::multi_index::composite_key
                 <
-                    parB*,
-                    boost::multi_index::member<parB,unsigned short int,&parB::s>,
-                    boost::multi_index::member<parB,size_t,&parB::t>
-                >,
-                boost::multi_index::composite_key_compare
+                    ParB,
+                    boost::multi_index::member<ParB,size_t,&ParB::t>,
+                    boost::multi_index::member<ParB,size_t,&ParB::reit>
+                    
+                >//,
+                // boost::multi_index::composite_key_compare
+                // <
+                //     std::less<size_t>,
+                //     std::less<size_t>
+                // >
+            >,
+            boost::multi_index::hashed_unique
+            <
+                boost::multi_index::tag<struct all>,
+                boost::multi_index::composite_key
                 <
-                    std::less<unsigned short int>,     
-                    std::less<size_t> 
-                >
+                    ParB,
+                    boost::multi_index::member<ParB,unsigned short int,&ParB::s>,
+                    boost::multi_index::member<ParB,unsigned short int,&ParB::fg>,
+                    boost::multi_index::member<ParB,size_t,&ParB::t>,
+                    boost::multi_index::member<ParB,size_t,&ParB::reit>
+                    
+                >//,
+                // boost::multi_index::composite_key_compare
+                // <
+                //     std::less<size_t>,
+                //     std::less<size_t>
+                // >
             >
         >
 >;
@@ -332,84 +373,33 @@ int main()
 
 	D(for (auto& i : distParams) std::cout << i.first << " " << i.second << " / " ;)
 	
-    Container C;
-    Population* c_array = new Population[par.sc * par.FGnum];
-    
-    
+      
     double kEC50 = 1. / (par.FG_EC50Orders + 1.);
-    size_t cnt = 0;
-    for (auto sc = 0; sc < par.sc; ++sc)
-    {		
-        for (auto fg = 0; fg < par.FGnum; ++fg,++cnt)
-        {			
-            c_array[cnt].s = sc;
-            c_array[cnt].fg = fg;
-            c_array[cnt].idx = cnt; //sc << 16 | fg;
-            c_array[cnt].normParams = &distParams[sc];
-            c_array[cnt].size = par.sizeClasses[sc];
-            c_array[cnt].initPop = par.InitN[sc];
-
-            c_array[cnt].fillUntil(par.InitN[sc], par.sizeClasses[sc]);
-            c_array[cnt].EC50s = fg == 0 ? 4. + par.size_EC50Orders /
-                    (double(par.sizeClasses.size()) - 1.) * double(sc) :
-                    c_array[cnt-1].EC50s + (par.FG_EC50Orders / (par.FGnum - 1.));
-
-            D(std::cout << c_array[cnt].EC50s << " ";)
-            C.insert(&c_array[cnt]);
-        }
-            D(std::cout << std::endl;)
-    }
-
-    
-
-
-    double val = (**(C.get<s_and_fg>().find(std::make_tuple(0,0)))).EC50s;
-    for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
-    {
-        (**it).Growth_adj_tolerance = 1. - pow(kEC50 * ( (**it).EC50s - val ) , par.q); 
-    }
-
     //----------------------------------------------------------------------------------------
-    //Allocating space for temporary variables and results
+    //Allocating space for results and results
     const size_t ts = par.length / par.step;
     const size_t array_size = par.FGnum * par.sc * ts;
 
-    parB* parB_array = new parB[array_size];
-    for (auto i = 0; i < array_size; ++i) parB_array[i].parD.resize(par.reiterations);
-    parBContainer parB_container;
-    
-    // parB*** parB_array = new parB**[par.reiterations];
-    // for (auto i = 0; i < par.reiterations; ++i)
-    // {
-    //     parB_array[i] = new parB*[ts];
-    //     for (auto j =  0; j < ts; ++j) parB_array[i][j]=new parB[par.sc];
-    // }
-    // parBContainer parB_container;
-
-      
-
-    double*** FQ_sc = new double**[par.reiterations];
-    for (auto i = 0; i < par.reiterations; ++i)
+    ParB* parB_array = new ParB[array_size * par.reiterations];
+    ParBContainer parB_container;
+    size_t ii = 0;
+    for (unsigned short int i = 0; i < par.sc; ++i) 
+    for(unsigned short int j = 0; j < par.FGnum; ++j) 
+    for(size_t k= 0; k <ts; ++k)
+    for(size_t l = 0; l < par.reiterations; ++l, ++ii)
     {
-        FQ_sc[i] = new double*[ts];
-        for (auto j =  0; j < ts; ++j) FQ_sc[i][j]=new double[par.sc];
+        parB_array[ii].s = i;
+        parB_array[ii].fg = j;
+        parB_array[ii].t = k;
+        parB_array[ii].reit = l;
+        parB_container.insert(&(parB_array[ii]));
     }
-
-    // for (auto i = 0; i < par.sc; ++i) FQ_sc[i] = new double[ts];
-    double* B_fin = new double[ts];
-    double** totD = new double* [par.reiterations];
-    for (auto i = 0; i < par.reiterations; ++i) totD[i] = new double[ts];
-
-    // //----------------------------------------------------------------------------------------
+    
+    //----------------------------------------------------------------------------------------
     //Work work work work work!
     #pragma omp parallel for
     for (int reit = 0; reit < par.reiterations; ++reit)
     {
-        double* B = new double[ts];
-        parB* parB_array = new parB[array_size];
-        for (auto i = 0; i < array_size; ++i) parB_array[i].parD.resize(par.reiterations);
-        parBContainer parB_container;
-
         Container C;
         Population* c_array = new Population[par.sc * par.FGnum];
         size_t cnt = 0;
@@ -446,53 +436,25 @@ int main()
             (**it).initRandPop();
         }
                 
-        size_t parB_cnt = 0;
-        for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it, ++parB_cnt)
+        double biomass = 0.;
+        for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
         {
-            parB_array[parB_cnt].mass = (**it).getMass();
-            parB_array[parB_cnt].parD[reit] = (**it).getNumAlive();
-            parB_array[parB_cnt].t = 0;
-            // if (reit == 100)
-            // {
-                parB_array[parB_cnt].s = (unsigned short int) (**it).s; 
-                parB_array[parB_cnt].fg = (unsigned short int) (**it).fg;
-                parB_array[parB_cnt].idx = (**it).idx;
-                parB_container.insert(&(parB_array[parB_cnt]));
-            // } 
+            auto currentPar = parB_container.get<all>().find(std::make_tuple((**it).s,
+                                                                       (**it).fg,
+                                                                        0,
+                                                                        reit
+                                                                        ));
+
+
+            (**currentPar).mass = (**it).getMass();
+            (**currentPar).num_alive = (**it).getNumAlive();
+            biomass += (**currentPar).mass;
         }
-
-        // Getting total number of organisms that are alive
-        size_t tot_alive = 0;
-        for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it) tot_alive += (**it).getNumAlive(); 
-
-        
-        for (auto i = 0; i < par.sc; ++i)
-        {
-            double fq_sc = 0;
-            for (auto it : boost::make_iterator_range(parB_container.get<s_and_t>().equal_range( std::make_tuple(i,0) )))
-            {
-                fq_sc += it->parD[reit];
-            }
-            FQ_sc[reit][0][i] =  fq_sc / tot_alive;
-            D(std::cout << "Size class " << i << " FQ_sc " << FQ_sc[reit][0][i] << std::endl;)
-
-        }
-
-
-        B[0] = 0.;
-        totD[reit][0] = 0.;
-        for (auto it : boost::make_iterator_range(parB_container.get<t_par>().equal_range(0)))
-        {
-                B[0] += it->mass;
-                totD[reit][0] += it->parD[reit];
-        }
-
 
         //Do the evolution baby!
 
         for (auto i = 1; i < ts; ++i)
         {
-            // std::cout << i << " ";
             double L = i < par.t_stressor/par.step ? L1 : L1 + log10(pow(10,par.L2) * exp((-log(2) / par.tao ) * (i - par.t_stressor/par.step)));
             
             // for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
@@ -517,7 +479,7 @@ int main()
                         (1. - (1. / (1. + (pow(10,c_array[k].EC50s) / pow(pow(10, L), par.nlogit)))));
 
                 c_array[k].growth = ((Unbiased_GR[c_array[k].s] -
-                        (B[i - 1] * par.BM_inhibit)) * par.step) * c_array[k].epsilon;
+                        (biomass * par.BM_inhibit)) * par.step) * c_array[k].epsilon;
 
                 if (c_array[k].growth < 0.) c_array[k].growth = 0.;
 
@@ -527,86 +489,53 @@ int main()
 
 
 
-
-            for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it, ++parB_cnt)
+            biomass = 0.;
+            for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it)
             {
-                
-                parB_array[parB_cnt].mass = (**it).getMass();
-                parB_array[parB_cnt].parD[reit] = (**it).getNumAlive();
-                parB_array[parB_cnt].t = i;
-                // if(reit == 100)
-                // {
-                    parB_array[parB_cnt].s = (unsigned short int) (**it).s; 
-                    parB_array[parB_cnt].fg = (unsigned short int) (**it).fg;
-                    parB_array[parB_cnt].idx = (**it).idx;
-                    parB_container.insert(&(parB_array[parB_cnt]));
-                // } 
-            }
-
-            size_t tot_alive = 0;
-            for (auto it = C.get<idx>().begin(); it != C.get<idx>().end(); ++it) tot_alive += (**it).getNumAlive(); 
-
+                auto currentPar = parB_container.get<all>().find(std::make_tuple((**it).s,
+                                                                       (**it).fg,
+                                                                        i,
+                                                                        reit
+                                                                        ));
+                (**currentPar).mass = (**it).getMass();
+                (**currentPar).num_alive = (**it).getNumAlive();
             
-            for (auto j = 0; j < par.sc; ++j)
-            {
-                double fq_sc = 0;
-                for (auto it : boost::make_iterator_range(parB_container.get<s_and_t>().equal_range( std::make_tuple(j,i) )))
-                {
-                    fq_sc += it->parD[reit];
-                }
-                FQ_sc[reit][i][j] =  fq_sc / tot_alive;
-                D(std::cout << "Size class " << j << " FQ_sc " << FQ_sc[reit][i][j] << std::endl;)
+                biomass += (**currentPar).mass;
             }
-
-            B[i] = 0.;
-            totD[reit][i] = 0.;
-            for (auto it : boost::make_iterator_range(parB_container.get<t_par>().equal_range(i)))
-            {
-                    B[i] += it->mass;
-                    totD[reit][i] += it->parD[reit];
-            }
-            // std::cout << std::fixed << std::setprecision(2) << B[i] << " " << totD[reit][i] << "\t";
-
-
-
-
-
-
 
         }
-        // std::cout << std::endl << std::endl << std::endl;
-        
-        delete [] parB_array;
         delete [] c_array;
-        for(auto i = 0; i<ts;++i) B_fin[i] = B[i];
-        delete [] B;
-
-	}
+        // std::cout << std::endl << std::endl;
+        
+    }
 	
-    for(auto i = 0; i<ts;++i) std::cout << B_fin[i] << " ";
-    std::cout << std::endl;
 
+
+    for (auto i = 0; i < par.reiterations; ++i)
+    {
+        for (auto j = 0; j < ts; ++j)
+        {
+            double biomass = 0.;
+            size_t alive =  0;
+            for (auto it : boost::make_iterator_range(parB_container.get<t_and_reit>().equal_range(std::make_tuple(j,i))))
+            {
+                biomass += it->mass;
+                alive += it ->num_alive;
+            }
+            std::cout << biomass << " " << alive << "\t";
+        }
+        std::cout << std::endl << std::endl;
+    }
+    
 	auto stop = std::chrono::high_resolution_clock().now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds > (stop - start);
 
 	
 	//Freeing memory
     delete [] parB_array;
-    delete [] c_array;
+    // delete [] c_array;
     
-    for (auto i = 0; i < par.reiterations; ++i)
-    {
-        for (auto j = 0; j < ts; ++j) delete[] FQ_sc[i][j];
-        delete[] FQ_sc[i];
-    }
-    delete FQ_sc;
-
-
-    delete [] B_fin;	
-    for (auto i = 0; i < par.reiterations; ++i) delete[] totD[i];
-    delete [] totD;
-
-
+    
 	std::cout << "Time taken by peace4U: " << duration.count() << " milliseconds " << std::endl;
 	return 0;
 }
