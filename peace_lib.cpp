@@ -25,17 +25,11 @@
 #include <list>
 #include <iomanip> 
 #include <omp.h>
-#include <boost/python.hpp>
-#include <boost/python/def.hpp>
-#include <boost/python/dict.hpp>
-#include <boost/python/list.hpp>
-#include <boost/python/extract.hpp>
-#include <boost/python/numpy.hpp>
 
 struct Parameters {
-    size_t FGnum;
-    size_t sc;
-    std::vector<double> sizeClasses;
+    static const size_t FGnum = 6;
+    static const size_t sc =  6;
+    std::array<double,sc> sizeClasses = { 5,10,25,50,100,200 };
 
     double Pd = 0.05;
     double g = -0.0035;
@@ -43,7 +37,7 @@ struct Parameters {
     double Fi_1, Fi_1_Pd;
     double b_Pd = -4.0;
     double g_Pd = -0.00215;
-    std::vector<double> Pd_C;
+    std::array<double,sc> Pd_C;
 
     void setDeathProbabilities()
     {
@@ -63,109 +57,10 @@ struct Parameters {
     size_t size_EC50Orders = 2;
     size_t FG_EC50Orders = 2;
     double q = 3.;
-    std::vector<size_t> InitN;
+    std::array<size_t,FGnum> InitN = { 9000,750,200,130,20,10 };
     size_t reiterations = 3;
 
-    Parameters();
-    Parameters(size_t,size_t);
-    // Parameters(int FG, int SC) : FGnum(FG), sc(SC), sizeClasses(std::array<double, SC>{}, initN(std::array<size_t,FG>{}) {};
-
-    boost::python::dict getParameters();
-    static Parameters setParameters(boost::python::dict);
-    
-
 };
-
-
- 
- Parameters::Parameters() : FGnum(6), sc(6), sizeClasses({ 5,10,25,50,100,200 }), InitN({ 9000,750,200,130,20,10 }) 
- {    
- };
-
- Parameters::Parameters(size_t FG, size_t SC) : FGnum(FG), sc(SC) 
- {    
-    sizeClasses.resize(SC);
-    InitN.resize(FG);
- };
-
-
-boost::python::dict Parameters::getParameters()
-    {
-        
-        boost::python::dict result;
-        boost::python::list sizeList, initList;
-        for (auto& i : sizeClasses) sizeList.append(i);
-        for (auto& i : InitN) initList.append(i);
-        result["FGnum"]             = FGnum;
-        result["sc"]                = sc;
-        result["Pd"]                = Pd;
-        result["g"]                 = g;
-        result["b"]                 = b;
-        result["Fi_1"]              = Fi_1;
-        result["Fi_1_pd"]           = Fi_1_Pd;
-        result["b_Pd"]              = b_Pd;
-        result["g_Pd"]              = g_Pd;
-        result["BM_inhibit"]        = BM_inhibit;
-        result["length"]            = length;
-        result["step"]              = step;
-        result["t_stressor"]        = t_stressor;
-        result["L2"]                = L2;
-        result["tao"]               = tao;
-        result["nlogit"]            = nlogit;
-        result["size_EC50Orders"]   = size_EC50Orders;
-        result["FG_EC50Orders"]     = FG_EC50Orders;
-        result["q"]                 = q;
-        result["reiterations"]      = reiterations;
-        result["Pd"]                = Pd;
-        result["sizeClasses"]       = sizeList;
-        result["InitN"]             = initList;
-
-        return result;
-    }
-
-Parameters Parameters::setParameters(boost::python::dict par)
-{
-    using get_size_t = boost::python::extract<size_t>; 
-    using get_double = boost::python::extract<double>;
-    using list       = boost::python::list;
-    using get_list   = boost::python::extract<list>;
-    
-    Parameters result;
-    result = Parameters(get_size_t(par["FGnum"]),get_size_t(par["sc"]));
-    result.Pd                   = get_double(par["Pd"]);
-    result.g                    = get_double(par["g"]);
-    result.b                    = get_double(par["b"]);
-    result.Fi_1                 = get_double(par["Fi_1"]);
-    result.Fi_1_Pd              = get_double(par["Fi_1_pd"]);
-    result.b_Pd                 = get_double(par["b_Pd"]);
-    result.g_Pd                 = get_double(par["g_Pd"]);
-    result.BM_inhibit           = get_double(par["BM_inhibit"]);
-    result.length               = get_size_t(par["length"]);
-    result.step                 = get_size_t(par["step"]);
-    result.t_stressor           = get_double(par["t_stressor"]);
-    result.L2                   = get_double(par["L2"]);
-    result.tao                  = get_double(par["tao"]);
-    result.nlogit               = get_double(par["nlogit"]);
-    result.size_EC50Orders      = get_size_t(par["size_EC50Orders"]);
-    result.FG_EC50Orders        = get_size_t(par["FG_EC50Orders"]);
-    result.q                    = get_double(par["q"]);
-    result.reiterations         = get_size_t(par["reiterations"]);
-    result.Pd                   = get_double(par["Pd"]);
-    list InitN                  = get_list(par["InitN"]);
-    list sizeClasses            = get_list(par["sizeClasses"]);
-    size_t cnt = 0;
-    for(auto it = result.InitN.begin(); it < result.InitN.end(); ++it, ++cnt)
-    {
-        *it = get_size_t(InitN[cnt]);
-    } 
-    cnt = 0;
-    for(auto it = result.sizeClasses.begin(); it < result.sizeClasses.end(); ++it, ++cnt)
-    {
-        *it = get_double(sizeClasses[cnt]);
-    }
-    return result;
-}
-
 
 struct Population
 {
@@ -444,21 +339,29 @@ using ParBContainer = boost::multi_index_container
 >;
 
 
-
-
-boost::python::dict runFromPython(boost::python::dict pythonPar)
+int main()
 {
+    
+    //----------------------------------------------------------------------------------------
+	//Starting timer
     auto start = std::chrono::high_resolution_clock::now();
-    Parameters par = Parameters::setParameters(pythonPar);
+   
+    //----------------------------------------------------------------------------------------
+    /*
+    Initial calculations
+    */
+    Parameters par; //Structure containing the default parameter set
+    
     double L1 = 1.0;
-    par.setDeathProbabilities();
-    std::vector<double> Unbiased_GR = par.sizeClasses;
-    for (auto& i : Unbiased_GR ) i = par.Fi_1 * pow(i + par.b, par.g);
+    double Fi_1 = 0.3314 * exp((-1.001 * log(par.b + 5) - 0.0366) * par.g);
+    std::array<double,par.sc> Unbiased_GR;
+    Unbiased_GR = par.sizeClasses;
+    for (auto& i : Unbiased_GR ) i = Fi_1 * pow(i + par.b, par.g);
     par.setDeathProbabilities();
 
     D(for (auto& i : Unbiased_GR) std::cout << i << " ";)
    
-    std::vector<std::pair<double, double>> distParams{par.sc};
+    std::array<std::pair<double, double>,par.sc> distParams;
     std::transform(par.sizeClasses.begin(),
             par.sizeClasses.end(),
             distParams.begin(),
@@ -478,6 +381,21 @@ boost::python::dict runFromPython(boost::python::dict pythonPar)
 
     std::vector<ParB> parB_array;
     parB_array.reserve(array_size *  par.reiterations);
+    
+    // ParB* parB_array = new ParB[array_size * par.reiterations];
+    // ParBContainer parB_container;
+    // size_t ii = 0;
+    // for (unsigned short int i = 0; i < par.sc; ++i) 
+    // for(unsigned short int j = 0; j < par.FGnum; ++j) 
+    // for(size_t k= 0; k <ts; ++k)
+    // for(size_t l = 0; l < par.reiterations; ++l, ++ii)
+    // {
+    //     parB_array[ii].s = i;
+    //     parB_array[ii].fg = j;
+    //     parB_array[ii].t = k;
+    //     parB_array[ii].reit = l;
+    //     parB_container.insert(&(parB_array[ii]));
+    // }
     
     //----------------------------------------------------------------------------------------
     //Work work work work work!
@@ -586,19 +504,15 @@ boost::python::dict runFromPython(boost::python::dict pythonPar)
 
     //----------------------------------------------------------------------------------------
     // Cleaning up
-        delete [] c_array;        
+        delete [] c_array;
+        // std::cout << std::endl << std::endl;
+        
     }
 	
     //----------------------------------------------------------------------------------------
     // Showing results
     ParBContainer parB_container;
     for (auto &i : parB_array) parB_container.insert(&i);
-
-    using dict = boost::python::dict;
-    using list = boost::python::list;
-
-    list reitList, tsList, massList, aliveList;
-
 
     for (auto i = 0; i < par.reiterations; ++i)
     {
@@ -611,76 +525,24 @@ boost::python::dict runFromPython(boost::python::dict pythonPar)
                 biomass += it->mass;
                 alive += it ->num_alive;
             }
-            reitList.append(i);
-            tsList.append(j);
-            massList.append(biomass);
-            aliveList.append(alive);
-            // std::cout << biomass << " " << alive << "\t";
+            std::cout << biomass << " " << alive << "\t";
         }
-        // std::cout << std::endl << std::endl;
+        std::cout << std::endl << std::endl;
     }
-
-    dict result;
-    result["reit"] = reitList;
-    result["ts"] = tsList;
-    result["mass"] = massList;
-    result["alive"] = aliveList;
     
 	auto stop = std::chrono::high_resolution_clock().now();
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds > (stop - start);
 
 	
+	//Freeing memory
+    // delete [] parB_array;
+    // delete [] c_array;
+    
+    
 	std::cout << "Time taken by peace4U: " << duration.count() << " milliseconds " << std::endl;
-	return result;
-}
-
-
-class ScopedGILRelease
-{
-public:
-    inline ScopedGILRelease()
-    {
-        m_thread_state = PyEval_SaveThread();
-    }
-
-    inline ~ScopedGILRelease()
-    {
-        PyEval_RestoreThread(m_thread_state);
-        m_thread_state = NULL;
-    }
-
-private:
-    PyThreadState * m_thread_state;
-};
-
-boost::python::dict runWrapper(boost::python::dict pythonPar)
-{
-    ScopedGILRelease scoped;
-    return runFromPython(pythonPar);
+	return 0;
 }
 
 
 
-
-
-
-
-
-
-
-
-
-
-BOOST_PYTHON_MODULE(peace)
-{
-    using namespace boost::python;
-    class_< Parameters>("Parameters",init<>())
-        .def(init<size_t,size_t>())
-        .def("getParameters",&Parameters::getParameters)
-        .def("setParameters",&Parameters::setParameters)
-    ;
-
-    def("run",runWrapper);
-
-}
 
