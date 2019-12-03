@@ -21,7 +21,7 @@ project(peace)
     link_directories(${Boost_LIBRARY_DIR})
 
     # Build and link the peace module
-    add_library(peace SHARED peace.cpp RandGenerator.cpp Population.cpp Parameters.cpp)
+    add_library(peace SHARED peace_lib.cpp RandGenerator.cpp Population.cpp Parameters.cpp)
     target_link_libraries(peace  ${Boost_LIBRARIES} ${PYTHON_LIBRARIES} -lpthread)
     add_dependencies(peace Boost)
   

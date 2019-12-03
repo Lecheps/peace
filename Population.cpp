@@ -67,7 +67,7 @@ void Population::doTheEvolution()
             } 
         }     
         
-        if (uniform->get() < probabilityOfDying) 
+        if (uniform->get() < 0.05) 
         {
             it = c.erase(it);
             it--; 
