@@ -14,17 +14,25 @@
         "type": "shell",
         "command": "g++",
         "args": [
+          "-I/home/jose-luis/Documents/boost_1_71_0",
+          "-I/usr/include/python3.6m",
+          "-L/home/jose-luis/Documents/peace/build/extern/lib/",
+          "-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu",
           "-Ofast",
           "-o",
           "peace",
-          "peace.cpp",
-          "RandGenerator.cpp",
+          "peace_standalone.cpp",
+          "RandGenerator.cpp", 
+          "Population.cpp",
+          "Parameters.cpp",
           "-lpthread",
-          "-fopenmp"
+          "-fopenmp",
+          "-lboost_python36",
+          "-lpython3.6"
         ],
         "group": {
           "kind": "build",
-          "isDefault": false
+          "isDefault" : true
         },
         "problemMatcher": [
           "$gcc"
@@ -35,14 +43,22 @@
         "type": "shell",
         "command": "g++",
         "args": [
+          "-I/home/jose-luis/Documents/boost_1_71_0",
+          "-L/home/jose-luis/Documents/peace/build/extern/lib/",
+          "-L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu",
+          "-I/usr/include/python3.6m",
           "-ggdb3",
           "-g3",
           "-gdwarf",
           "-o",
           "peace_debug",
-          "peace.cpp",
+          "peace_standalone.cpp",
           "RandGenerator.cpp",
+          "Population.cpp",
+          "Parameters.cpp",
           "-lpthread",
+          "-lboost_python36",
+          "-lpython3.6",
           "-DDEBUG_ENABLE"
         ],
         "group": {
@@ -54,4 +70,4 @@
         ]
       }
     ]
-  }
+  }.
