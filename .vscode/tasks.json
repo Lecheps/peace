@@ -57,6 +57,7 @@
           "Population.cpp",
           "Parameters.cpp",
           "-lpthread",
+          "-fopenmp",
           "-lboost_python36",
           "-lpython3.6",
           "-DDEBUG_ENABLE"

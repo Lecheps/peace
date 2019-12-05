@@ -164,6 +164,21 @@ using ParBContainer = boost::multi_index_container
                 //     std::less<size_t>,
                 //     std::less<size_t>
                 // >
+            >,
+            boost::multi_index::hashed_non_unique
+            <
+                boost::multi_index::tag<struct s_and_t>,
+                boost::multi_index::composite_key
+                <
+                    ParB,
+                    boost::multi_index::member<ParB,unsigned short int,&ParB::s>,
+                    boost::multi_index::member<ParB,size_t,&ParB::t>                    
+                >//,
+                // boost::multi_index::composite_key_compare
+                // <
+                //     std::less<size_t>,
+                //     std::less<size_t>
+                // >
             >
         >
 >;
@@ -358,7 +373,7 @@ boost::python::dict getAll(boost::python::dict pythonPar)
     using dict = boost::python::dict;
     using list = boost::python::list;
 
-    list reitList, tsList, massList, aliveList;
+    list reitList, tsList, massList, aliveList, densityList;
 
 
     for (auto i = 0; i < par.reiterations; ++i)
@@ -377,15 +392,36 @@ boost::python::dict getAll(boost::python::dict pythonPar)
             massList.append(biomass);
             aliveList.append(alive);
             // std::cout << biomass << " " << alive << "\t";
+            
         }
         // std::cout << std::endl << std::endl;
     }
+
+
+    for (auto t=0; t < ts; ++t)       
+    {
+        list dummyList;
+        for (auto s = 0; s < par.sc; ++s)    
+        {  
+            double density = 0.0;
+            for (auto it: boost::make_iterator_range(parB_container.get<s_and_t>().equal_range(
+                            std::make_tuple(s,t) ) ) )
+            {
+                density += double (it -> num_alive);
+            }
+            density /= (10000.0 * par.sc * par.reiterations);
+            dummyList.append(density);
+        }
+        densityList.append(dummyList);
+    }
+
 
     dict result;
     result["reit"] = reitList;
     result["ts"] = tsList;
     result["mass"] = massList;
     result["alive"] = aliveList;
+    result["density"] = densityList;
     
 
 	return result;
@@ -439,6 +475,8 @@ boost::python::dict getLimits(boost::python::dict pythonPar)
     }
 
     dict bioDict,aliveDict;
+    list densityList;
+
     for (auto &i : accBio)
     {
         for (auto j = 0; j < p1.size(); ++j)
@@ -462,17 +500,38 @@ boost::python::dict getLimits(boost::python::dict pythonPar)
     {
         bioDict[headerP1[i]]=quantileMass[i];
         aliveDict[headerP1[i]]=quantileAlive[i];
+    }
+
+    for (auto t=0; t < ts; ++t)       
+    {
+        list dummyList;
+        for (auto s = 0; s < par.sc; ++s)    
+        {  
+            double density = 0.0;
+            for (auto it: boost::make_iterator_range(parB_container.get<s_and_t>().equal_range(
+                            std::make_tuple(s,t) ) ) )
+            {
+                density += double (it -> num_alive);
+            }
+            density /= (10000.0 * par.sc * par.reiterations);
+            dummyList.append(density);
+        }
+        densityList.append(dummyList);
     }   
 
     boost::python::dict result;
     result["biomass"] = bioDict;
     result["alive"] = aliveDict;
-
-
-
+    result["density"] = densityList;
 
     return result;
 }
+
+
+
+
+
+
 
 
 

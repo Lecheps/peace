@@ -9,7 +9,11 @@ uniform(RandGenerator::make_generator(DISTRIBUTION::UNIFORM))
         // uniform->start_async_gen();
 }
 
-Population::~Population(){};
+Population::~Population()
+{
+    delete normal;
+    delete uniform;
+};
 
 Population::Population(const Population &p) : 
     normal(RandGenerator::make_generator(DISTRIBUTION::NORMAL)),
@@ -61,13 +65,13 @@ void Population::doTheEvolution()
         if ( *it > (normParams->second  * normal->get() + normParams->first))
         {
             *it /= 2.;
-            if (c.size() < potsize && uniform->get() >= 0.05)
+            if (c.size() < potsize && uniform->get() >= probabilityOfDying)
             {
                 c.insert(it,*it);
             } 
         }     
         
-        if (uniform->get() < 0.05) 
+        if (uniform->get() < probabilityOfDying) 
         {
             it = c.erase(it);
             it--; 

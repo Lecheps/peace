@@ -4,7 +4,7 @@
 void Parameters::setDeathProbabilities()
     {
         Fi_1 = 0.3314 * exp((-1.001 * log(b + 5) - 0.0366) * g);
-        Fi_1_Pd = 0.3314 * exp((-1.001 * log(b + 5) - 0.0366) * g_Pd);
+        Fi_1_Pd = Pd * exp((-1.001 * log(b_Pd + 5) - 0.0366) * g_Pd);
         Pd_C = sizeClasses;
         for (auto& i : Pd_C) i = Fi_1_Pd * pow(i + b_Pd, g_Pd);            
     }
